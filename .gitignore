@@ -1,0 +1,9 @@
+# CMake build directory
+/build/
+
+# Editor files
+.vscode/
+
+# Temporary files
+*.swp
+*~
