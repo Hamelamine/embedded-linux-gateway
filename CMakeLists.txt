@@ -13,6 +13,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 add_executable(gateway
     src/main.cpp
     src/logging/logger.cpp
+    src/sensors/simulated_sensor.cpp
 )
 
 target_include_directories(gateway
