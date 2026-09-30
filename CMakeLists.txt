@@ -14,6 +14,7 @@ add_executable(gateway
     src/main.cpp
     src/logging/logger.cpp
     src/sensors/simulated_sensor.cpp
+    src/pipeline/reading_validator.cpp
 )
 
 target_include_directories(gateway
@@ -22,6 +23,22 @@ target_include_directories(gateway
 )
 
 target_compile_options(gateway
+    PRIVATE
+        -Wall
+        -Wextra
+        -Wpedantic
+)
+add_executable(validator_test
+    tests/reading_validator_test.cpp
+    src/pipeline/reading_validator.cpp
+)
+
+target_include_directories(validator_test
+    PRIVATE
+        ${PROJECT_SOURCE_DIR}/include
+)
+
+target_compile_options(validator_test
     PRIVATE
         -Wall
         -Wextra
