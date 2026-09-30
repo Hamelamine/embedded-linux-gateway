@@ -12,11 +12,6 @@ int main()
 
     try {
 
-        // ==============================================
-        // Instance #1
-        // Store two measurements
-        // ==============================================
-
         {
             gateway::PersistentStore store(
                 database_path,
@@ -38,13 +33,14 @@ int main()
                 "mm/s",
                 std::chrono::system_clock::now()
             };
+
             gateway::SensorReading machine{
-    "machine_01",
-    gateway::SensorType::MachineStatus,
-    1.0,
-    "state",
-    std::chrono::system_clock::now()
-};
+                "machine_01",
+                gateway::SensorType::MachineStatus,
+                1.0,
+                "state",
+                std::chrono::system_clock::now()
+            };
 
             if (!store.store(temperature)) {
                 std::cerr
@@ -57,30 +53,30 @@ int main()
                     << "FAIL: vibration not stored\n";
                 return 1;
             }
-            if (store.store(machine)) {
-                std::cerr
-                    << "FAIL: buffer should reject third measurement\n";
 
-                return 1;
-            }
-
-            std::cout
-                << "Buffer-full behavior verified\n";
             if (store.pending_count() != 2) {
                 std::cerr
                     << "FAIL: expected 2 measurements\n";
                 return 1;
             }
 
+            if (store.store(machine)) {
+                std::cerr
+                    << "FAIL: full buffer accepted third measurement\n";
+                return 1;
+            }
+
+            if (store.pending_count() != 2) {
+                std::cerr
+                    << "FAIL: count changed after buffer rejection\n";
+                return 1;
+            }
+
             std::cout
-                << "Stored 2 measurements\n";
+                << "Buffer-full behavior verified\n";
         }
 
-        // ==============================================
-        // Instance #2
-        // Simulates reopening after restart
-        // ==============================================
-
+        // Simulate reopening after restart.
         {
             gateway::PersistentStore store(
                 database_path,
@@ -88,10 +84,8 @@ int main()
             );
 
             if (store.pending_count() != 2) {
-
                 std::cerr
-                    << "FAIL: measurements did not survive reopen\n";
-
+                    << "FAIL: persistence after reopen failed\n";
                 return 1;
             }
 
@@ -99,10 +93,8 @@ int main()
                 store.load_oldest();
 
             if (!oldest.has_value()) {
-
                 std::cerr
-                    << "FAIL: oldest measurement not found\n";
-
+                    << "FAIL: oldest measurement missing\n";
                 return 1;
             }
 
@@ -110,10 +102,8 @@ int main()
                 oldest->reading.sensor_id !=
                 "temperature_01"
             ) {
-
                 std::cerr
                     << "FAIL: FIFO order incorrect\n";
-
                 return 1;
             }
 
@@ -123,73 +113,44 @@ int main()
                 << '\n';
 
             if (!store.remove(oldest->id)) {
-
                 std::cerr
-                    << "FAIL: oldest measurement not removed\n";
-
+                    << "FAIL: first measurement not removed\n";
                 return 1;
             }
 
-            if (store.pending_count() != 1) {
-
-                std::cerr
-                    << "FAIL: expected 1 measurement after delete\n";
-
-                return 1;
-            }
-
-            oldest =
-                store.load_oldest();
-
-            if (!oldest.has_value()) {
-
-                std::cerr
-                    << "FAIL: second measurement not found\n";
-
-                return 1;
-            }
+            oldest = store.load_oldest();
 
             if (
+                !oldest.has_value() ||
                 oldest->reading.sensor_id !=
-                "vibration_01"
+                    "vibration_01"
             ) {
-
                 std::cerr
-                    << "FAIL: second measurement incorrect\n";
-
+                    << "FAIL: second FIFO measurement incorrect\n";
                 return 1;
             }
 
             if (!store.remove(oldest->id)) {
-
                 std::cerr
                     << "FAIL: second measurement not removed\n";
-
                 return 1;
             }
 
             if (store.pending_count() != 0) {
-
                 std::cerr
-                    << "FAIL: database should now be empty\n";
-
+                    << "FAIL: queue should be empty\n";
                 return 1;
             }
 
-            const auto empty =
-                store.load_oldest();
-
-            if (empty.has_value()) {
-
+            if (store.load_oldest().has_value()) {
                 std::cerr
-                    << "FAIL: expected empty queue\n";
-
+                    << "FAIL: empty queue returned a measurement\n";
                 return 1;
             }
         }
 
         std::cout
-            << "PASS: persistent FIFO queue works\n";
+            << "PASS: persistent bounded FIFO queue works\n";
 
         return 0;
 

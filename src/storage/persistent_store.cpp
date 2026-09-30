@@ -139,8 +139,9 @@ bool PersistentStore::store(
     const SensorReading& reading)
 {
     if (pending_count() >= max_pending_) {
-    return false;
-}
+        return false;
+    }
+
     const char* sql = R"(
         INSERT INTO pending_measurements (
             sensor_id,
