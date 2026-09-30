@@ -1,6 +1,7 @@
 #include "gateway/logging/logger.hpp"
 #include "gateway/pipeline/reading_validator.hpp"
 #include "gateway/sensors/simulated_sensor.hpp"
+#include "gateway/storage/persistent_store.hpp"
 
 #include <array>
 #include <chrono>
@@ -47,16 +48,22 @@ std::string timestamp_to_iso8601(
     return stream.str();
 }
 
-void log_reading(const gateway::SensorReading& reading)
+void log_reading(
+    const gateway::SensorReading& reading)
 {
     std::ostringstream message;
 
-    message << "timestamp="
-            << timestamp_to_iso8601(reading.timestamp)
-            << " sensor=" << reading.sensor_id
-            << " type=" << sensor_type_to_string(reading.type)
-            << " value=" << reading.value
-            << " unit=" << reading.unit;
+    message
+        << "timestamp="
+        << timestamp_to_iso8601(reading.timestamp)
+        << " sensor="
+        << reading.sensor_id
+        << " type="
+        << sensor_type_to_string(reading.type)
+        << " value="
+        << reading.value
+        << " unit="
+        << reading.unit;
 
     gateway::log(
         gateway::LogLevel::Info,
@@ -71,6 +78,17 @@ int main()
     gateway::log(
         gateway::LogLevel::Info,
         "Embedded Linux Industrial IoT Gateway starting"
+    );
+
+gateway::PersistentStore store(
+    "data/gateway.db",
+    10000
+);
+
+    gateway::log(
+        gateway::LogLevel::Info,
+        "Recovered pending measurements: "
+            + std::to_string(store.pending_count())
     );
 
     gateway::SimulatedSensor temperature_sensor(
@@ -95,7 +113,10 @@ int main()
 
     while (true) {
 
-        const std::array<gateway::SensorReading, 3> readings{
+        const std::array<
+            gateway::SensorReading,
+            3
+        > readings{
             temperature_sensor.read(),
             vibration_sensor.read(),
             machine_status_sensor.read()
@@ -103,21 +124,38 @@ int main()
 
         for (const auto& reading : readings) {
 
-            const gateway::ValidationResult result =
+            const auto result =
                 validator.validate(reading);
 
-            if (result.valid) {
+            if (!result.valid) {
 
-                log_reading(reading);
+                gateway::log(
+                    gateway::LogLevel::Warning,
+                    "Rejected reading sensor="
+                        + reading.sensor_id
+                        + " reason="
+                        + result.reason
+                );
+
+                continue;
+            }
+
+            log_reading(reading);
+
+            if (store.store(reading)) {
+
+                gateway::log(
+                    gateway::LogLevel::Debug,
+                    "Measurement stored sensor="
+                        + reading.sensor_id
+                );
 
             } else {
 
                 gateway::log(
-                    gateway::LogLevel::Warning,
-                    "Rejected reading sensor=" +
-                        reading.sensor_id +
-                        " reason=" +
-                        result.reason
+                    gateway::LogLevel::Error,
+                    "Failed to store measurement sensor="
+                        + reading.sensor_id
                 );
             }
         }
